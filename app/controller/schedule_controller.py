@@ -53,10 +53,13 @@ def delete_schedule(schedule_id: int, service: ScheduleService = Depends(), _: U
 
 
 @router.get("", response_model=ApiResponse[List[ScheduleResponse]])
-def get_all_schedules(service: ScheduleService = Depends(), current_user: User = Depends(require_role("ADMIN", "RECTOR", "COORDINATOR", "TEACHER"))):
+def get_all_schedules(
+    include_inactive: bool = False, service: ScheduleService = Depends(),
+    current_user: User = Depends(require_role("ADMIN", "RECTOR", "COORDINATOR", "TEACHER")),
+):
     """Listado general (docente: solo su horario)."""
     return ApiResponse(
-        success=True, message="Schedules retrieved successfully", data=service.get_all_schedules(current_user)
+        success=True, message="Schedules retrieved successfully", data=service.get_all_schedules(current_user, include_inactive)
     )
 
 
@@ -77,3 +80,10 @@ def deactivate_schedule(
     """Borrado lógico (estado = FALSE), igual que DELETE."""
     service.delete_schedule(schedule_id)
     return ApiResponse(success=True, message="Schedule deactivated successfully", data=None)
+
+
+@router.put("/{schedule_id}/activate", response_model=ApiResponse[ScheduleResponse])
+def activate_schedule(
+    schedule_id: int, service: ScheduleService = Depends(), _: User = Depends(require_role("ADMIN")),
+):
+    return ApiResponse(success=True, message="Schedule activated successfully", data=service.activate_schedule(schedule_id))

@@ -30,4 +30,10 @@ class ScheduleRepository(BaseRepository):
         ).all()
 
     def find_all_active(self) -> List[Schedule]:
-        return self.db.query(Schedule).filter(Schedule.estado.is_(True)).all()
+        return self.db.query(Schedule).filter(Schedule.estado.is_(True)).order_by(Schedule.id).all()
+
+    def find_all_including_inactive(self) -> List[Schedule]:
+        return self.db.query(Schedule).order_by(Schedule.estado.desc(), Schedule.id).all()
+
+    def find_by_id_any(self, schedule_id: int) -> Optional[Schedule]:
+        return self.db.query(Schedule).filter(Schedule.id == schedule_id).first()

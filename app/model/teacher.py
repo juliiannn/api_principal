@@ -18,6 +18,6 @@ class Teacher(AuditMixin, Base):
     education_level = Column(SqlEnum(EducationLevel), nullable=False)
     contract_type = Column(SqlEnum(ContractType), nullable=False)
 
-    user = relationship("User", back_populates="teacher_profile")
+    user = relationship("User", back_populates="teacher_profile", lazy="selectin")
     course_subjects = relationship("CourseSubject", back_populates="teacher")
     directed_courses = relationship("Course", back_populates="director_teacher")

@@ -8,12 +8,13 @@ from app.dto.response.attendance import AttendanceResponse
 from app.exception import (
     DuplicateResourceException, ForbiddenOperationException, InvalidRequestException, ResourceNotFoundException,
 )
-from app.model import Attendance, CourseSubject, Student, Teacher, User
+from app.model import Attendance, AttendanceStatus, CourseSubject, Student, Teacher, User
 from app.repository.attendance_repository import AttendanceRepository
 from app.repository.course_subject_repository import CourseSubjectRepository
 from app.repository.enrollment_repository import EnrollmentRepository
 from app.repository.student_repository import StudentRepository
 from app.service.current_user_service import CurrentUserService
+from app.service.platform_notifier import PlatformNotifier
 
 
 class AttendanceService:
@@ -25,7 +26,9 @@ class AttendanceService:
         course_subject_repository: CourseSubjectRepository = Depends(),
         enrollment_repository: EnrollmentRepository = Depends(),
         current_user_service: CurrentUserService = Depends(),
+        notifier: PlatformNotifier = Depends(),
     ):
+        self.notifier = notifier
         self.attendance_repository = attendance_repository
         self.student_repository = student_repository
         self.course_subject_repository = course_subject_repository
@@ -70,7 +73,14 @@ class AttendanceService:
         attendance = Attendance(
             student_id=student.id, course_subject_id=cs.id, date=request.date, status=request.status
         )
-        return self.to_response(self.attendance_repository.save(attendance))
+        response = self.to_response(self.attendance_repository.save(attendance))
+        self._alert_absences([response])
+        return response
+
+    def _alert_absences(self, items: List[AttendanceResponse]) -> None:
+        for a in items:
+            if a.status == AttendanceStatus.ABSENT:
+                self.notifier.absence(a.student_id, a.subject_name, a.course_name, a.date)
 
     def create_bulk_attendance(
         self, request: CreateBulkAttendanceRequest, current_teacher: Teacher
@@ -78,11 +88,17 @@ class AttendanceService:
         cs = self._find_course_subject_or_404(request.course_subject_id)
         self._check_ownership(cs, current_teacher)
 
+        # Planilla del curso: si el estudiante ya tiene asistencia ese día se actualiza (no se duplica)
         results = []
         for record in request.records:
             student = self.student_repository.find_active_by_id(record.student_id)
             if student is None:
                 raise ResourceNotFoundException(f"Student with id {record.student_id} not found")
+            existing = self.attendance_repository.find_one(student.id, cs.id, request.date)
+            if existing is not None:
+                existing.status = record.status
+                results.append(existing)
+                continue
             self._validate_assignable(student, cs, request.date)
             attendance = Attendance(
                 student_id=student.id, course_subject_id=cs.id, date=request.date, status=record.status
@@ -94,7 +110,9 @@ class AttendanceService:
         self.attendance_repository.commit()
         for a in results:
             self.attendance_repository.refresh(a)
-        return [self.to_response(a) for a in results]
+        responses = [self.to_response(a) for a in results]
+        self._alert_absences(responses)
+        return responses
 
     def get_my_attendance(self, current_user: User) -> List[AttendanceResponse]:
         student = self.student_repository.find_active_by_user_id(current_user.id)

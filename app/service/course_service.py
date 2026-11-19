@@ -86,6 +86,11 @@ class CourseService:
     def get_all_courses(self, include_inactive: bool, current_user: User) -> List[CourseResponse]:
         # Solo el ADMIN puede ver los cursos desactivados (para poder reactivarlos)
         show_inactive = include_inactive and current_user.role_ref.nombre == "ADMIN"
+        if current_user.role_ref.nombre == "TEACHER":
+            # Alcance "solo sus cursos": donde dicta clase o es director de grupo
+            teacher = self.teacher_repository.find_active_by_user_id(current_user.id)
+            courses = [] if teacher is None else self.course_repository.find_active_for_teacher(teacher.id)
+            return [self.to_response(c) for c in courses]
         return [self.to_response(c) for c in self.course_repository.find_all(show_inactive)]
 
     def get_course_by_id(self, course_id: int) -> CourseResponse:

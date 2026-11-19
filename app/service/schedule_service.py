@@ -87,11 +87,29 @@ class ScheduleService:
         schedule.estado = False  # borrado lógico: el registro no se elimina de la tabla
         self.schedule_repository.commit()
 
-    def get_all_schedules(self, current_user: User) -> List[ScheduleResponse]:
+    def activate_schedule(self, schedule_id: int) -> ScheduleResponse:
+        """Reactiva un horario si no se cruza con otra clase activa del curso o del docente."""
+        schedule = self.schedule_repository.find_by_id_any(schedule_id)
+        if schedule is None:
+            raise ResourceNotFoundException(f"Schedule with id {schedule_id} not found")
+        if not schedule.estado:
+            cs = schedule.course_subject
+            others = (self.schedule_repository.find_active_by_course_and_day(cs.course_id, schedule.day_of_week)
+                      + self.schedule_repository.find_active_by_teacher_and_day(cs.teacher_id, schedule.day_of_week))
+            if any(overlaps(o.start_time, o.end_time, schedule.start_time, schedule.end_time) for o in others):
+                raise InvalidRequestException("No se puede activar: se cruza con otra clase de ese día")
+            schedule.estado = True
+            self.schedule_repository.commit()
+            self.schedule_repository.refresh(schedule)
+        return self.to_response(schedule)
+
+    def get_all_schedules(self, current_user: User, include_inactive: bool = False) -> List[ScheduleResponse]:
         """Listado general: directivos ven todos los horarios; el docente, solo los suyos."""
         if current_user.role_ref.nombre == "TEACHER":
             teacher = self.teacher_repository.find_active_by_user_id(current_user.id)
             items = [] if teacher is None else self.schedule_repository.find_active_by_teacher(teacher.id)
+        elif include_inactive and current_user.role_ref.nombre == "ADMIN":
+            items = self.schedule_repository.find_all_including_inactive()
         else:
             items = self.schedule_repository.find_all_active()
         return [self.to_response(s) for s in items]

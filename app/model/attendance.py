@@ -15,5 +15,5 @@ class Attendance(AuditMixin, Base):
     date = Column(Date, nullable=False)
     status = Column(SqlEnum(AttendanceStatus), nullable=False)
 
-    student = relationship("Student", back_populates="attendances")
-    course_subject = relationship("CourseSubject", back_populates="attendances")
+    student = relationship("Student", back_populates="attendances", lazy="selectin")
+    course_subject = relationship("CourseSubject", back_populates="attendances", lazy="selectin")

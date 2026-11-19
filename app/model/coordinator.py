@@ -16,4 +16,4 @@ class Coordinator(AuditMixin, Base):
     assignment_date = Column(Date, nullable=False)
     education_level = Column(SqlEnum(EducationLevel), nullable=False)
 
-    user = relationship("User", back_populates="coordinator_profile")
+    user = relationship("User", back_populates="coordinator_profile", lazy="selectin")

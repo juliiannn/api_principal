@@ -13,6 +13,7 @@ from app.repository.enrollment_repository import EnrollmentRepository
 from app.repository.grade_repository import GradeRepository
 from app.repository.student_repository import StudentRepository
 from app.service.current_user_service import CurrentUserService
+from app.service.platform_notifier import PlatformNotifier
 
 
 class GradeService:
@@ -24,7 +25,9 @@ class GradeService:
         course_subject_repository: CourseSubjectRepository = Depends(),
         enrollment_repository: EnrollmentRepository = Depends(),
         current_user_service: CurrentUserService = Depends(),
+        notifier: PlatformNotifier = Depends(),
     ):
+        self.notifier = notifier
         self.grade_repository = grade_repository
         self.student_repository = student_repository
         self.course_subject_repository = course_subject_repository
@@ -69,16 +72,25 @@ class GradeService:
             raise DuplicateResourceException("A grade already exists for this student, subject and period")
 
         grade = Grade(student_id=student.id, course_subject_id=cs.id, period=request.period, value=request.value)
-        return self.to_response(self.grade_repository.save(grade))
+        response = self.to_response(self.grade_repository.save(grade))
+        self._alert_if_low(response)
+        return response
+
+    def _alert_if_low(self, g: GradeResponse) -> None:
+        self.notifier.low_grade(g.student_id, g.subject_name, g.course_name, g.period, g.value)
 
     def update_grade(self, grade_id: int, request: UpdateGradeRequest, current_teacher: Teacher) -> GradeResponse:
         grade = self.find_or_404(grade_id)
         if grade.course_subject.teacher_id != current_teacher.id:
             raise ForbiddenOperationException("You can only edit grades for subjects assigned to you")
+        previous = grade.value
         grade.value = request.value
         self.grade_repository.commit()
         self.grade_repository.refresh(grade)
-        return self.to_response(grade)
+        response = self.to_response(grade)
+        if float(previous) != float(response.value):  # solo si la nota cambió
+            self._alert_if_low(response)
+        return response
 
     def get_my_grades(self, current_user: User) -> List[GradeResponse]:
         student = self._own_student(current_user)

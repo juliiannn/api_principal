@@ -9,6 +9,7 @@ from app.exception import DuplicateResourceException, InvalidRequestException, R
 from app.model import User, UserRole
 from app.repository.role_repository import RoleRepository
 from app.repository.user_repository import UserRepository
+from app.service.platform_notifier import PlatformNotifier
 
 
 class UserService:
@@ -17,9 +18,11 @@ class UserService:
         self,
         user_repository: UserRepository = Depends(),
         role_repository: RoleRepository = Depends(),
+        notifier: PlatformNotifier = Depends(),
     ):
         self.user_repository = user_repository
         self.role_repository = role_repository
+        self.notifier = notifier
 
     # ----- utilidades compartidas con los servicios de perfiles -----
 
@@ -62,7 +65,9 @@ class UserService:
         self.assert_identity_available(document, email)
         user = self.register_user(request, UserRole.ADMIN, document, email)
         self.user_repository.commit()
-        return self.user_repository.refresh(user)
+        self.user_repository.refresh(user)
+        self.notifier.user_registered(user)
+        return user
 
     def get_all_users(self) -> List[User]:
         return self.user_repository.find_all_active()
@@ -102,4 +107,6 @@ class UserService:
         user.password = hash_password(user.document)
         user.must_change_password = True
         self.user_repository.commit()
-        return self.user_repository.refresh(user)
+        self.user_repository.refresh(user)
+        self.notifier.password_changed(user, by_admin=True)
+        return user

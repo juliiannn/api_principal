@@ -16,4 +16,4 @@ class Schedule(AuditMixin, Base):
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
 
-    course_subject = relationship("CourseSubject", back_populates="schedules")
+    course_subject = relationship("CourseSubject", back_populates="schedules", lazy="selectin")

@@ -14,9 +14,9 @@ class CourseSubject(AuditMixin, Base):
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
 
-    course = relationship("Course", back_populates="course_subjects")
-    subject = relationship("Subject", back_populates="course_subjects")
-    teacher = relationship("Teacher", back_populates="course_subjects")
+    course = relationship("Course", back_populates="course_subjects", lazy="selectin")
+    subject = relationship("Subject", back_populates="course_subjects", lazy="selectin")
+    teacher = relationship("Teacher", back_populates="course_subjects", lazy="selectin")
     grades = relationship("Grade", back_populates="course_subject")
     attendances = relationship("Attendance", back_populates="course_subject")
     schedules = relationship("Schedule", back_populates="course_subject")

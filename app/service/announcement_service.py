@@ -7,13 +7,19 @@ from app.dto.response.announcement import AnnouncementResponse
 from app.exception import ResourceNotFoundException
 from app.model import Announcement, User
 from app.repository.announcement_repository import AnnouncementRepository
+from app.service.platform_notifier import PlatformNotifier
 
 
 class AnnouncementService:
     """Comunicados institucionales: los publica el rector (o el administrador) y los ven todos los roles."""
 
-    def __init__(self, announcement_repository: AnnouncementRepository = Depends()):
+    def __init__(
+        self,
+        announcement_repository: AnnouncementRepository = Depends(),
+        notifier: PlatformNotifier = Depends(),
+    ):
         self.announcement_repository = announcement_repository
+        self.notifier = notifier
 
     @staticmethod
     def to_response(a: Announcement) -> AnnouncementResponse:
@@ -33,7 +39,10 @@ class AnnouncementService:
         announcement = Announcement(
             titulo=request.titulo.strip(), contenido=request.contenido.strip(), publicado_por=current_user.id
         )
-        return self.to_response(self.announcement_repository.save(announcement))
+        saved = self.announcement_repository.save(announcement)
+        response = self.to_response(saved)
+        self.notifier.announcement(saved)
+        return response
 
     def get_all_announcements(self) -> List[AnnouncementResponse]:
         return [self.to_response(a) for a in self.announcement_repository.find_all_active()]

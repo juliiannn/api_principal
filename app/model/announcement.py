@@ -13,4 +13,4 @@ class Announcement(AuditMixin, Base):
     contenido = Column(Text, nullable=False)
     publicado_por = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    author = relationship("User")
+    author = relationship("User", lazy="selectin")

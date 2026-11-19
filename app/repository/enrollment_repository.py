@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
-from app.model import Enrollment, EnrollmentStatus
+from app.model import Course, Enrollment, EnrollmentStatus
 from app.repository.base_repository import BaseRepository
 
 
@@ -10,7 +10,7 @@ class EnrollmentRepository(BaseRepository):
         return self.db.query(Enrollment).filter(Enrollment.id == enrollment_id, Enrollment.estado.is_(True)).first()
 
     def find_all_active(self) -> List[Enrollment]:
-        return self.db.query(Enrollment).filter(Enrollment.estado.is_(True)).all()
+        return self.db.query(Enrollment).filter(Enrollment.estado.is_(True)).order_by(Enrollment.id).all()
 
     def find_current_by_student(self, student_id: int) -> Optional[Enrollment]:
         """Matrícula vigente (ACTIVE) del estudiante."""
@@ -36,3 +36,17 @@ class EnrollmentRepository(BaseRepository):
         return self.db.query(Enrollment).filter(
             Enrollment.status == EnrollmentStatus.ACTIVE, Enrollment.estado.is_(True)
         ).all()
+
+    def find_current_courses(self, student_ids: List[int]) -> Dict[int, Tuple[int, str]]:
+        """Curso actual (id, nombre) de varios estudiantes en UNA consulta: {student_id: (course_id, course_name)}."""
+        if not student_ids:
+            return {}
+        rows = (
+            self.db.query(Enrollment.student_id, Course.id, Course.name)
+            .join(Course, Course.id == Enrollment.course_id)
+            .filter(Enrollment.student_id.in_(student_ids), Enrollment.status == EnrollmentStatus.ACTIVE,
+                    Enrollment.estado.is_(True))
+            .all()
+        )
+        return {sid: (cid, cname) for sid, cid, cname in rows}
+

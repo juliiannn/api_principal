@@ -18,6 +18,7 @@ from app.model import (
     PermissionScope, Piar, PiarAdjustment, PiarGoal, PiarNeed, PiarProgress, Student, Teacher,
 )
 from app.repository.course_subject_repository import CourseSubjectRepository
+from app.repository.enrollment_repository import EnrollmentRepository
 from app.repository.piar_adjustment_repository import PiarAdjustmentRepository
 from app.repository.piar_goal_repository import PiarGoalRepository
 from app.repository.piar_need_repository import PiarNeedRepository
@@ -26,8 +27,12 @@ from app.repository.piar_repository import PiarRepository
 from app.repository.special_need_repository import SpecialNeedRepository
 from app.repository.student_repository import StudentRepository
 from app.repository.teacher_repository import TeacherRepository
+from app.service.platform_notifier import PlatformNotifier
 
 
+# El PIAR lo elaboran los docentes de aula con el docente de apoyo, la familia y el estudiante (Decreto 1421 de 2017).
+# Por eso el docente (alcance ASSIGNED en role_modules) crea, edita y desactiva el PIAR, pero SOLO de los
+# estudiantes de sus cursos; coordinación y administración (alcance ALL) lo hacen para cualquier estudiante.
 class PiarService:
     """Plan Individual de Ajustes Razonables (Decreto 1421 de 2017)."""
 
@@ -42,7 +47,10 @@ class PiarService:
         student_repository: StudentRepository = Depends(),
         teacher_repository: TeacherRepository = Depends(),
         course_subject_repository: CourseSubjectRepository = Depends(),
+        enrollment_repository: EnrollmentRepository = Depends(),
+        notifier: PlatformNotifier = Depends(),
     ):
+        self.notifier = notifier
         self.piar_repository = piar_repository
         self.piar_need_repository = piar_need_repository
         self.piar_goal_repository = piar_goal_repository
@@ -52,6 +60,7 @@ class PiarService:
         self.student_repository = student_repository
         self.teacher_repository = teacher_repository
         self.course_subject_repository = course_subject_repository
+        self.enrollment_repository = enrollment_repository
 
     # ===== Respuestas =====
 
@@ -77,9 +86,14 @@ class PiarService:
             registrado_por=p.registrado_por, teacher_name=p.teacher.user.full_name,
         )
 
-    @classmethod
-    def to_response(cls, p: Piar) -> PiarResponse:
+    def to_response(self, p: Piar, courses: Optional[dict] = None) -> PiarResponse:
+        # courses: {student_id: (course_id, course_name)} ya consultado para todo el listado (evita una consulta por PIAR)
+        if courses is None:
+            courses = self.enrollment_repository.find_current_courses([p.student_id])
+        course_id, course_name = courses.get(p.student_id, (None, None))
         return PiarResponse(
+            course_id=course_id,
+            course_name=course_name,
             id=p.id, student_id=p.student_id, student_name=p.student.user.full_name, school_year=p.school_year,
             fecha_inicio=p.fecha_inicio, fecha_fin=p.fecha_fin, observaciones=p.observaciones,
             consentimiento_acudiente=p.consentimiento_acudiente,
@@ -87,10 +101,14 @@ class PiarService:
                 {"special_need_id": n.special_need_id, "nombre": n.special_need.nombre, "diagnostico": n.diagnostico}
                 for n in p.needs if n.estado
             ],
-            goals=[cls.goal_to_response(g) for g in p.goals if g.estado],
-            adjustments=[cls.adjustment_to_response(a) for a in p.adjustments if a.estado],
+            goals=[self.goal_to_response(g) for g in p.goals if g.estado],
+            adjustments=[self.adjustment_to_response(a) for a in p.adjustments if a.estado],
             estado=p.estado, creado=p.creado, actualizado=p.actualizado,
         )
+
+    def to_responses(self, piars: List[Piar]) -> List[PiarResponse]:
+        courses = self.enrollment_repository.find_current_courses(list({p.student_id for p in piars}))
+        return [self.to_response(p, courses) for p in piars]
 
     # ===== Helpers de acceso =====
 
@@ -99,18 +117,6 @@ class PiarService:
         if piar is None:
             raise ResourceNotFoundException(f"PIAR with id {piar_id} not found")
         return piar
-
-    @staticmethod
-    def _require_consent_for_teachers(access: Access, piar: Piar) -> None:
-        """Los docentes (alcance ASSIGNED) solo acceden al PIAR cuando el acudiente ya lo autorizó."""
-        if access.scope == PermissionScope.ASSIGNED and not piar.consentimiento_acudiente:
-            raise ForbiddenOperationException("El acudiente aún no ha autorizado el PIAR de este estudiante")
-
-    @staticmethod
-    def _deny_teachers(access: Access) -> None:
-        """Crear el plan o cambiar su consentimiento es labor de coordinación, no del docente."""
-        if access.scope == PermissionScope.ASSIGNED:
-            raise ForbiddenOperationException("Solo coordinación puede crear el PIAR o modificar los datos del plan")
 
     def _find_own_student(self, access: Access) -> Student:
         student = self.student_repository.find_active_by_user_id(access.user.id)
@@ -136,11 +142,21 @@ class PiarService:
         if not teaches_student:
             raise ForbiddenOperationException("You can only access the PIAR of students from your assigned courses")
 
-    def _validate_course_subject(self, cs_id: Optional[int]) -> None:
+    def _validate_course_subject(self, cs_id: Optional[int], student_id: int, access: Access) -> None:
+        """La materia (opcional) debe dictarse en el curso actual del estudiante; un docente solo
+        puede usar materias que él mismo dicta. Sin materia, la meta o el ajuste aplica a todas."""
         if cs_id is None:
             return
-        if self.course_subject_repository.find_active_by_id(cs_id) is None:
+        cs = self.course_subject_repository.find_active_by_id(cs_id)
+        if cs is None:
             raise ResourceNotFoundException(f"CourseSubject with id {cs_id} not found")
+        enrollment = self.enrollment_repository.find_current_by_student(student_id)
+        if enrollment is None or enrollment.course_id != cs.course_id:
+            raise InvalidRequestException("The subject does not belong to the student's current course")
+        if access.scope == PermissionScope.ASSIGNED:
+            teacher = self.teacher_repository.find_active_by_user_id(access.user.id)
+            if teacher is None or cs.teacher_id != teacher.id:
+                raise ForbiddenOperationException("You can only use subjects you teach")
 
     def _attach_need(self, piar: Piar, item: PiarNeedInput) -> PiarNeed:
         need = self.special_need_repository.find_by_id(item.special_need_id)
@@ -165,7 +181,6 @@ class PiarService:
         student = self.student_repository.find_active_by_id(request.student_id)
         if student is None:
             raise ResourceNotFoundException(f"Student with id {request.student_id} not found")
-        self._deny_teachers(access)
         self._check_student_access(access, student.id)
 
         if self.piar_repository.exists_by_student_and_school_year(student.id, request.school_year):
@@ -187,31 +202,36 @@ class PiarService:
             self.piar_repository.flush()
         self.piar_repository.commit()
         self.piar_repository.refresh(piar)
-        return self.to_response(piar)
+        response = self.to_response(piar)
+        self.notifier.piar_changed(student.id, f"Se creó el PIAR del año {piar.school_year}", access.user)
+        return response
 
     def get_my_piars(self, access: Access) -> List[PiarResponse]:
         student = self._find_own_student(access)
         piars = self.piar_repository.find_active_by_student_newest_first(student.id)
-        return [self.to_response(p) for p in piars]
+        return self.to_responses(piars)
+
+    def get_my_progress(self, access: Access) -> List[PiarProgressResponse]:
+        student = self._find_own_student(access)
+        piars = self.piar_repository.find_active_by_student_newest_first(student.id)
+        if not piars:
+            return []
+        items = self.piar_progress_repository.find_active_by_piar_ordered_by_period(piars[0].id)
+        return [self.progress_to_response(p) for p in items]
 
     def get_piars_by_student(self, student_id: int, access: Access) -> List[PiarResponse]:
         self._check_student_access(access, student_id)
         piars = self.piar_repository.find_active_by_student_newest_first(student_id)
-        if access.scope == PermissionScope.ASSIGNED:
-            piars = [p for p in piars if p.consentimiento_acudiente]
-        return [self.to_response(p) for p in piars]
+        return self.to_responses(piars)
 
     def get_piar_by_id(self, piar_id: int, access: Access) -> PiarResponse:
         piar = self._find_piar_or_404(piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
         return self.to_response(piar)
 
     def update_piar(self, piar_id: int, request: UpdatePiarRequest, access: Access) -> PiarResponse:
         piar = self._find_piar_or_404(piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
-        self._deny_teachers(access)
         if request.fecha_fin is not None and request.fecha_fin < piar.fecha_inicio:
             raise InvalidRequestException("End date must not be before start date")
         piar.fecha_fin = request.fecha_fin
@@ -219,30 +239,38 @@ class PiarService:
         piar.consentimiento_acudiente = request.consentimiento_acudiente
         self.piar_repository.commit()
         self.piar_repository.refresh(piar)
-        return self.to_response(piar)
+        response = self.to_response(piar)
+        self.notifier.piar_changed(piar.student_id, f"Se actualizaron los datos generales del PIAR {piar.school_year}", access.user)
+        return response
 
     # ===== Metas, ajustes y avance =====
 
     def create_goal(self, request: CreatePiarGoalRequest, access: Access) -> PiarGoalResponse:
         piar = self._find_piar_or_404(request.piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
-        self._validate_course_subject(request.course_subject_id)
+        self._validate_course_subject(request.course_subject_id, piar.student_id, access)
         goal = PiarGoal(
             piar_id=piar.id, course_subject_id=request.course_subject_id, descripcion=request.descripcion.strip()
         )
-        return self.goal_to_response(self.piar_goal_repository.save(goal))
+        response = self.goal_to_response(self.piar_goal_repository.save(goal))
+        self.notifier.piar_changed(piar.student_id, f"Nueva meta{self._in_subject(response.subject_name)}", access.user)
+        return response
+
+    @staticmethod
+    def _in_subject(name) -> str:
+        return f" en {name}" if name else " general"
 
     def create_adjustment(self, request: CreatePiarAdjustmentRequest, access: Access) -> PiarAdjustmentResponse:
         piar = self._find_piar_or_404(request.piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
-        self._validate_course_subject(request.course_subject_id)
+        self._validate_course_subject(request.course_subject_id, piar.student_id, access)
         adjustment = PiarAdjustment(
             piar_id=piar.id, course_subject_id=request.course_subject_id, tipo=request.tipo,
             descripcion=request.descripcion.strip(),
         )
-        return self.adjustment_to_response(self.piar_adjustment_repository.save(adjustment))
+        response = self.adjustment_to_response(self.piar_adjustment_repository.save(adjustment))
+        self.notifier.piar_changed(piar.student_id, f"Nuevo ajuste razonable{self._in_subject(response.subject_name)}", access.user)
+        return response
 
     def register_progress(
         self, request: CreatePiarProgressRequest, access: Access, teacher: Teacher
@@ -251,7 +279,6 @@ class PiarService:
         if goal is None:
             raise ResourceNotFoundException(f"Goal with id {request.piar_goal_id} not found")
         self._check_student_access(access, goal.piar.student_id)
-        self._require_consent_for_teachers(access, goal.piar)
 
         if self.piar_progress_repository.exists_by_goal_and_period(goal.id, request.period):
             raise DuplicateResourceException("Progress already registered for this goal and period")
@@ -260,7 +287,9 @@ class PiarService:
             piar_goal_id=goal.id, period=request.period, nivel=request.nivel,
             observaciones=request.observaciones, registrado_por=teacher.id,
         )
-        return self.progress_to_response(self.piar_progress_repository.save(progress))
+        response = self.progress_to_response(self.piar_progress_repository.save(progress))
+        self.notifier.piar_changed(goal.piar.student_id, f"Se registró el avance del periodo {str(getattr(request.period, 'value', request.period)).replace('PERIOD_', '')}", access.user)
+        return response
 
     def update_progress(
         self, progress_id: int, request: UpdatePiarProgressRequest, access: Access
@@ -269,26 +298,45 @@ class PiarService:
         if progress is None:
             raise ResourceNotFoundException(f"Progress with id {progress_id} not found")
         self._check_student_access(access, progress.goal.piar.student_id)
-        self._require_consent_for_teachers(access, progress.goal.piar)
         progress.nivel = request.nivel
         progress.observaciones = request.observaciones
         self.piar_progress_repository.commit()
         self.piar_progress_repository.refresh(progress)
-        return self.progress_to_response(progress)
+        response = self.progress_to_response(progress)
+        self.notifier.piar_changed(progress.goal.piar.student_id, f"Se modificó el avance del periodo {str(getattr(progress.period, 'value', progress.period)).replace('PERIOD_', '')}", access.user)
+        return response
 
     def get_piar_progress(self, piar_id: int, access: Access) -> List[PiarProgressResponse]:
         piar = self._find_piar_or_404(piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
         items = self.piar_progress_repository.find_active_by_piar_ordered_by_period(piar.id)
         return [self.progress_to_response(p) for p in items]
+
+    def deactivate_goal(self, goal_id: int, access: Access) -> PiarGoalResponse:
+        goal = self.piar_goal_repository.find_active_by_id(goal_id)
+        if goal is None:
+            raise ResourceNotFoundException(f"Goal with id {goal_id} not found")
+        self._check_student_access(access, goal.piar.student_id)
+        goal.estado = False
+        self.piar_goal_repository.commit()
+        self.piar_goal_repository.refresh(goal)
+        return self.goal_to_response(goal)
+
+    def deactivate_adjustment(self, adjustment_id: int, access: Access) -> PiarAdjustmentResponse:
+        adjustment = self.piar_adjustment_repository.find_active_by_id(adjustment_id)
+        if adjustment is None:
+            raise ResourceNotFoundException(f"Adjustment with id {adjustment_id} not found")
+        self._check_student_access(access, adjustment.piar.student_id)
+        adjustment.estado = False
+        self.piar_adjustment_repository.commit()
+        self.piar_adjustment_repository.refresh(adjustment)
+        return self.adjustment_to_response(adjustment)
 
     # ===== Necesidades del plan =====
 
     def add_need(self, piar_id: int, request: PiarNeedInput, access: Access) -> PiarResponse:
         piar = self._find_piar_or_404(piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
         self._attach_need(piar, request)
         self.piar_repository.commit()
         self.piar_repository.refresh(piar)
@@ -297,7 +345,6 @@ class PiarService:
     def remove_need(self, piar_id: int, special_need_id: int, access: Access) -> PiarResponse:
         piar = self._find_piar_or_404(piar_id)
         self._check_student_access(access, piar.student_id)
-        self._require_consent_for_teachers(access, piar)
         pn = self.piar_need_repository.find_active_by_piar_and_need(piar.id, special_need_id)
         if pn is None:
             raise ResourceNotFoundException("That need is not registered in the PIAR")
@@ -309,22 +356,18 @@ class PiarService:
     # ===== Listado general y borrado lógico =====
 
     def get_all_piars(self, access: Access) -> List[PiarResponse]:
-        """ALL = todos (activos e inactivos); ASSIGNED = estudiantes de sus cursos con consentimiento; OWN = el propio."""
+        """ALL = todos; ASSIGNED = los estudiantes de los cursos del docente; OWN = el propio. Incluye inactivos (para reactivarlos)."""
         if access.scope == PermissionScope.OWN:
             return self.get_my_piars(access)
         piars = self.piar_repository.find_all_newest_first()
         if access.scope == PermissionScope.ASSIGNED:
             teacher = self.teacher_repository.find_active_by_user_id(access.user.id)
-            piars = [
-                p for p in piars
-                if p.estado and p.consentimiento_acudiente and teacher is not None
-                and self.course_subject_repository.teacher_teaches_student(teacher.id, p.student_id)
-            ]
-        return [self.to_response(p) for p in piars]
+            mine = self.course_subject_repository.student_ids_taught_by(teacher.id) if teacher else set()
+            piars = [p for p in piars if p.student_id in mine]
+        return self.to_responses(piars)
 
     def set_piar_status(self, piar_id: int, active: bool, access: Access) -> PiarResponse:
         """Desactivar = borrado lógico (estado FALSE). Reactivar lo vuelve a dejar vigente."""
-        self._deny_teachers(access)
         piar = self.piar_repository.find_by_id(piar_id)
         if piar is None:
             raise ResourceNotFoundException(f"PIAR with id {piar_id} not found")

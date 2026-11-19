@@ -14,4 +14,4 @@ class PiarNeed(AuditMixin, Base):
     diagnostico = Column(Text, nullable=True)
 
     piar = relationship("Piar", back_populates="needs")
-    special_need = relationship("SpecialNeed", back_populates="piar_needs")
+    special_need = relationship("SpecialNeed", back_populates="piar_needs", lazy="selectin")

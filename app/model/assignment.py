@@ -13,4 +13,4 @@ class Assignment(AuditMixin, Base):
     description = Column(Text, nullable=False)
     due_date = Column(Date, nullable=False)
 
-    course_subject = relationship("CourseSubject", back_populates="assignments")
+    course_subject = relationship("CourseSubject", back_populates="assignments", lazy="selectin")

@@ -6,12 +6,16 @@ from app.dto.request.subject import CreateSubjectRequest
 from app.exception import DuplicateResourceException, ResourceNotFoundException
 from app.model import Subject, User
 from app.repository.subject_repository import SubjectRepository
+from app.repository.teacher_repository import TeacherRepository
 
 
 class SubjectService:
 
-    def __init__(self, subject_repository: SubjectRepository = Depends()):
+    def __init__(
+        self, subject_repository: SubjectRepository = Depends(), teacher_repository: TeacherRepository = Depends(),
+    ):
         self.subject_repository = subject_repository
+        self.teacher_repository = teacher_repository
 
     def find_or_404(self, subject_id: int, include_inactive: bool = False) -> Subject:
         s = self.subject_repository.find_by_id(subject_id, include_inactive)
@@ -37,6 +41,10 @@ class SubjectService:
     def get_all_subjects(self, include_inactive: bool, current_user: User) -> List[Subject]:
         # Solo el ADMIN puede ver las materias desactivadas (para poder reactivarlas)
         show_inactive = include_inactive and current_user.role_ref.nombre == "ADMIN"
+        if current_user.role_ref.nombre == "TEACHER":
+            # Alcance "solo sus materias": las que dicta
+            teacher = self.teacher_repository.find_active_by_user_id(current_user.id)
+            return [] if teacher is None else self.subject_repository.find_active_for_teacher(teacher.id)
         return self.subject_repository.find_all(show_inactive)
 
     def get_subject_by_id(self, subject_id: int) -> Subject:

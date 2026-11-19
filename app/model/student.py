@@ -13,7 +13,7 @@ class Student(AuditMixin, Base):
     guardian_phone = Column(String, nullable=False)
     guardian_email = Column(String, nullable=False)
 
-    user = relationship("User", back_populates="student_profile")
+    user = relationship("User", back_populates="student_profile", lazy="selectin")
     enrollments = relationship("Enrollment", back_populates="student")
     grades = relationship("Grade", back_populates="student")
     attendances = relationship("Attendance", back_populates="student")

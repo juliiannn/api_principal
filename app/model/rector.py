@@ -15,4 +15,4 @@ class Rector(AuditMixin, Base):
     administrative_period = Column(String, nullable=False)
     education_level = Column(SqlEnum(EducationLevel), nullable=False)
 
-    user = relationship("User", back_populates="rector_profile")
+    user = relationship("User", back_populates="rector_profile", lazy="selectin")

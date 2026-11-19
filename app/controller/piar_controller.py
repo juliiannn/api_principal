@@ -42,6 +42,14 @@ def get_my_piars(
     return ApiResponse(success=True, message="PIAR retrieved successfully", data=service.get_my_piars(access))
 
 
+@router.get("/me/progress", response_model=ApiResponse[List[PiarProgressResponse]])
+def get_my_progress(
+    service: PiarService = Depends(), access: Access = Depends(require_permission(STUDENT_MODULE, "ver")),
+):
+    """Avance por periodo de las metas del PIAR vigente del estudiante (módulo "Mi apoyo")."""
+    return ApiResponse(success=True, message="Progress retrieved successfully", data=service.get_my_progress(access))
+
+
 @router.get("/student/{student_id}", response_model=ApiResponse[List[PiarResponse]])
 def get_piars_by_student(
     student_id: int, service: PiarService = Depends(), access: Access = Depends(require_permission(MODULE, "ver")),
@@ -91,6 +99,25 @@ def update_progress(
     return ApiResponse(
         success=True, message="Progress updated successfully",
         data=service.update_progress(progress_id, request, access),
+    )
+
+
+@router.put("/goals/{goal_id}/deactivate", response_model=ApiResponse[PiarGoalResponse])
+def deactivate_goal(
+    goal_id: int, service: PiarService = Depends(),
+    access: Access = Depends(require_permission(MODULE, "eliminar")),
+):
+    return ApiResponse(success=True, message="Goal deactivated successfully", data=service.deactivate_goal(goal_id, access))
+
+
+@router.put("/adjustments/{adjustment_id}/deactivate", response_model=ApiResponse[PiarAdjustmentResponse])
+def deactivate_adjustment(
+    adjustment_id: int, service: PiarService = Depends(),
+    access: Access = Depends(require_permission(MODULE, "eliminar")),
+):
+    return ApiResponse(
+        success=True, message="Adjustment deactivated successfully",
+        data=service.deactivate_adjustment(adjustment_id, access),
     )
 
 

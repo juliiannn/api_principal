@@ -1,5 +1,5 @@
 from datetime import date as date_type
-from typing import List
+from typing import List, Optional
 
 from app.model import Attendance, CourseSubject
 from app.repository.base_repository import BaseRepository
@@ -34,3 +34,9 @@ class AttendanceRepository(BaseRepository):
         return self.db.query(Attendance).join(
             CourseSubject, Attendance.course_subject_id == CourseSubject.id
         ).filter(CourseSubject.teacher_id == teacher_id, Attendance.estado.is_(True)).all()
+
+    def find_one(self, student_id: int, course_subject_id: int, the_date: date_type) -> Optional[Attendance]:
+        return self.db.query(Attendance).filter(
+            Attendance.student_id == student_id, Attendance.course_subject_id == course_subject_id,
+            Attendance.date == the_date, Attendance.estado.is_(True),
+        ).first()

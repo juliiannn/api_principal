@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from app.model import Subject
+from app.model import CourseSubject, Subject
 from app.repository.base_repository import BaseRepository
 
 
@@ -26,3 +26,10 @@ class SubjectRepository(BaseRepository):
 
     def count_active(self) -> int:
         return self.db.query(Subject).filter(Subject.estado.is_(True)).count()
+
+    def find_active_for_teacher(self, teacher_id: int) -> List[Subject]:
+        """Materias que dicta el docente."""
+        dicta = self.db.query(CourseSubject.subject_id).filter(
+            CourseSubject.teacher_id == teacher_id, CourseSubject.estado.is_(True)
+        )
+        return self.db.query(Subject).filter(Subject.estado.is_(True), Subject.id.in_(dicta)).order_by(Subject.name).all()

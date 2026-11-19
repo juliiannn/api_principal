@@ -19,6 +19,6 @@ class Submission(AuditMixin, Base):
     fecha_calificacion = Column(DateTime, nullable=True)
     calificado_por = Column(Integer, ForeignKey("teachers.id"), nullable=True)
 
-    assignment = relationship("Assignment")
-    student = relationship("Student")
-    grader = relationship("Teacher")
+    assignment = relationship("Assignment", lazy="selectin")
+    student = relationship("Student", lazy="selectin")
+    grader = relationship("Teacher", lazy="selectin")

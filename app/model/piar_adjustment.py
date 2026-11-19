@@ -15,4 +15,4 @@ class PiarAdjustment(AuditMixin, Base):
     descripcion = Column(Text, nullable=False)
 
     piar = relationship("Piar", back_populates="adjustments")
-    course_subject = relationship("CourseSubject")
+    course_subject = relationship("CourseSubject", lazy="selectin")

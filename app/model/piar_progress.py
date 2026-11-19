@@ -18,4 +18,4 @@ class PiarProgress(AuditMixin, Base):
     registrado_por = Column(Integer, ForeignKey("teachers.id"), nullable=False)
 
     goal = relationship("PiarGoal", back_populates="progress")
-    teacher = relationship("Teacher")
+    teacher = relationship("Teacher", lazy="selectin")

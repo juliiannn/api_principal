@@ -38,5 +38,14 @@ from app.model.piar_adjustment import PiarAdjustment
 from app.model.piar_progress import PiarProgress
 from app.model.submission import Submission
 from app.model.announcement import Announcement
+from app.model.notification_status import NotificationStatus
+from app.model.notification_event import NotificationEvent
+from app.model.email_notification import EmailNotification
+from app.model.notification_setting import NotificationSetting
+from app.model.report_file import ReportFile
+from app.model.chat_conversation_type import ChatConversationType
+from app.model.chat_conversation import ChatConversation
+from app.model.chat_participant import ChatParticipant
+from app.model.chat_message import ChatMessage
 
-__all__ = ["UserRole", "DocumentType", "Gender", "EnrollmentStatus", "EducationLevel", "ContractType", "CoordinationArea", "Period", "AttendanceStatus", "DayOfWeek", "PermissionScope", "AdjustmentType", "ProgressLevel", "AuditMixin", "Role", "Module", "RoleModule", "User", "Student", "Teacher", "Coordinator", "Rector", "Course", "Subject", "CourseSubject", "Enrollment", "Grade", "Attendance", "Schedule", "Assignment", "SpecialNeed", "Piar", "PiarNeed", "PiarGoal", "PiarAdjustment", "PiarProgress", "Submission", "Announcement"]
+__all__ = ["UserRole", "DocumentType", "Gender", "EnrollmentStatus", "EducationLevel", "ContractType", "CoordinationArea", "Period", "AttendanceStatus", "DayOfWeek", "PermissionScope", "AdjustmentType", "ProgressLevel", "AuditMixin", "Role", "Module", "RoleModule", "User", "Student", "Teacher", "Coordinator", "Rector", "Course", "Subject", "CourseSubject", "Enrollment", "Grade", "Attendance", "Schedule", "Assignment", "SpecialNeed", "Piar", "PiarNeed", "PiarGoal", "PiarAdjustment", "PiarProgress", "Submission", "Announcement", "NotificationStatus", "NotificationEvent", "EmailNotification", "NotificationSetting", "ReportFile", "ChatConversationType", "ChatConversation", "ChatParticipant", "ChatMessage"]

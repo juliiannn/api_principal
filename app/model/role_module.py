@@ -18,5 +18,5 @@ class RoleModule(AuditMixin, Base):
     puede_eliminar = Column(Boolean, nullable=False, default=False)
     alcance = Column(SqlEnum(PermissionScope), nullable=False, default=PermissionScope.ALL)
 
-    role = relationship("Role", back_populates="permissions")
-    module = relationship("Module", back_populates="permissions")
+    role = relationship("Role", back_populates="permissions", lazy="selectin")
+    module = relationship("Module", back_populates="permissions", lazy="selectin")

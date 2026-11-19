@@ -13,5 +13,5 @@ class PiarGoal(AuditMixin, Base):
     descripcion = Column(Text, nullable=False)
 
     piar = relationship("Piar", back_populates="goals")
-    course_subject = relationship("CourseSubject")
+    course_subject = relationship("CourseSubject", lazy="selectin")
     progress = relationship("PiarProgress", back_populates="goal")

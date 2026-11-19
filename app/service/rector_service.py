@@ -60,6 +60,7 @@ class RectorService:
         self.rector_repository.add(rector)
         self.rector_repository.commit()
         self.rector_repository.refresh(rector)
+        self.user_service.notifier.user_registered(rector.user)
         return self.to_response(rector)
 
     def get_all_rectors(self) -> List[RectorResponse]:

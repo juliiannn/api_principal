@@ -18,8 +18,8 @@ class Piar(AuditMixin, Base):
     consentimiento_acudiente = Column(Boolean, nullable=False, default=False)
     elaborado_por = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    student = relationship("Student", back_populates="piars")
-    author = relationship("User")
-    needs = relationship("PiarNeed", back_populates="piar")
-    goals = relationship("PiarGoal", back_populates="piar")
-    adjustments = relationship("PiarAdjustment", back_populates="piar")
+    student = relationship("Student", back_populates="piars", lazy="selectin")
+    author = relationship("User", lazy="selectin")
+    needs = relationship("PiarNeed", back_populates="piar", lazy="selectin")
+    goals = relationship("PiarGoal", back_populates="piar", lazy="selectin")
+    adjustments = relationship("PiarAdjustment", back_populates="piar", lazy="selectin")

@@ -80,3 +80,12 @@ def update_status(
         success=True, message="Enrollment status updated successfully",
         data=service.update_status(enrollment_id, request),
     )
+
+
+@router.put("/{enrollment_id}/reactivate", response_model=ApiResponse[EnrollmentResponse])
+def reactivate_enrollment(
+    enrollment_id: int, service: EnrollmentService = Depends(), _: User = Depends(require_role("ADMIN", "COORDINATOR")),
+):
+    return ApiResponse(
+        success=True, message="Enrollment reactivated successfully", data=service.reactivate_enrollment(enrollment_id)
+    )

@@ -55,6 +55,7 @@ class CoordinatorService:
         self.coordinator_repository.add(coordinator)
         self.coordinator_repository.commit()
         self.coordinator_repository.refresh(coordinator)
+        self.user_service.notifier.user_registered(coordinator.user)
         return self.to_response(coordinator)
 
     def get_all_coordinators(self) -> List[CoordinatorResponse]:

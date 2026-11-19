@@ -15,5 +15,5 @@ class Grade(AuditMixin, Base):
     period = Column(SqlEnum(Period), nullable=False)
     value = Column(Numeric(3, 1), nullable=False)
 
-    student = relationship("Student", back_populates="grades")
-    course_subject = relationship("CourseSubject", back_populates="grades")
+    student = relationship("Student", back_populates="grades", lazy="selectin")
+    course_subject = relationship("CourseSubject", back_populates="grades", lazy="selectin")

@@ -10,6 +10,8 @@ class PiarResponse(CamelModel):
     id: int
     student_id: int
     student_name: str
+    course_id: Optional[int] = None   # curso actual del estudiante (matrícula activa)
+    course_name: Optional[str] = None
     school_year: int
     fecha_inicio: date
     fecha_fin: Optional[date]

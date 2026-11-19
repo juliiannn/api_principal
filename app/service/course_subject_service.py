@@ -90,10 +90,23 @@ class CourseSubjectService:
         self.course_subject_repository.refresh(cs)
         return self.to_response(cs)
 
-    def get_visible_course_subjects(self, current_user: User) -> List[CourseSubjectResponse]:
+    def activate_course_subject(self, cs_id: int) -> CourseSubjectResponse:
+        cs = self.course_subject_repository.find_by_id(cs_id)
+        if cs is None:
+            raise ResourceNotFoundException(f"Course-subject assignment with id {cs_id} not found")
+        if not cs.estado and self.course_subject_repository.exists_active_by_course_and_subject(cs.course_id, cs.subject_id):
+            raise DuplicateResourceException("Ese curso ya tiene esa materia asignada a otro docente")
+        cs.estado = True
+        self.course_subject_repository.commit()
+        self.course_subject_repository.refresh(cs)
+        return self.to_response(cs)
+
+    def get_visible_course_subjects(self, current_user: User, include_inactive: bool = False) -> List[CourseSubjectResponse]:
         """Directivos: todas las asignaciones. Docente: solo las suyas (para sus formularios de notas, asistencia...)."""
         if current_user.role_ref.nombre == "TEACHER":
             teacher = self.teacher_repository.find_active_by_user_id(current_user.id)
             items = [] if teacher is None else self.course_subject_repository.find_active_by_teacher_id(teacher.id)
             return [self.to_response(i) for i in items]
+        if include_inactive and current_user.role_ref.nombre == "ADMIN":
+            return [self.to_response(i) for i in self.course_subject_repository.find_all_including_inactive()]
         return self.get_all_course_subjects()

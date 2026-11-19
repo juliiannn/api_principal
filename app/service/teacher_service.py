@@ -56,6 +56,7 @@ class TeacherService:
         self.teacher_repository.add(teacher)
         self.teacher_repository.commit()
         self.teacher_repository.refresh(teacher)
+        self.user_service.notifier.user_registered(teacher.user)
         return self.to_response(teacher)
 
     def get_all_teachers(self) -> List[TeacherResponse]:

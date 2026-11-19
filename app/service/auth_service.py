@@ -11,6 +11,7 @@ from app.model import User
 from app.repository.user_repository import UserRepository
 from app.service.current_user_service import CurrentUserService
 from app.service.jwt_service import JwtService
+from app.service.platform_notifier import PlatformNotifier
 
 
 class AuthService:
@@ -20,7 +21,9 @@ class AuthService:
         user_repository: UserRepository = Depends(),
         jwt_service: JwtService = Depends(),
         current_user_service: CurrentUserService = Depends(),
+        notifier: PlatformNotifier = Depends(),
     ):
+        self.notifier = notifier
         self.user_repository = user_repository
         self.jwt_service = jwt_service
         self.current_user_service = current_user_service
@@ -51,6 +54,7 @@ class AuthService:
         current_user.password = hash_password(request.new_password)
         current_user.must_change_password = False
         self.user_repository.commit()
+        self.notifier.password_changed(current_user, by_admin=False)
 
     def get_my_permissions(self, current_user: User) -> List[MyPermissionResponse]:
         """Módulos y permisos del usuario autenticado (sirve para armar el menú del frontend)."""

@@ -24,13 +24,13 @@ def create_course_subject(
 
 @router.get("", response_model=ApiResponse[List[CourseSubjectResponse]])
 def get_all_course_subjects(
-    service: CourseSubjectService = Depends(),
+    include_inactive: bool = False, service: CourseSubjectService = Depends(),
     current_user: User = Depends(require_role("ADMIN", "RECTOR", "COORDINATOR", "TEACHER")),
 ):
     """Docente: solo sus asignaciones."""
     return ApiResponse(
         success=True, message="Course-subject assignments retrieved successfully",
-        data=service.get_visible_course_subjects(current_user),
+        data=service.get_visible_course_subjects(current_user, include_inactive),
     )
 
 
@@ -71,4 +71,13 @@ def deactivate_course_subject(
 ):
     return ApiResponse(
         success=True, message="Assignment deactivated successfully", data=service.deactivate_course_subject(cs_id)
+    )
+
+
+@router.put("/{cs_id}/activate", response_model=ApiResponse[CourseSubjectResponse])
+def activate_course_subject(
+    cs_id: int, service: CourseSubjectService = Depends(), _: User = Depends(require_role("ADMIN")),
+):
+    return ApiResponse(
+        success=True, message="Assignment activated successfully", data=service.activate_course_subject(cs_id)
     )

@@ -53,6 +53,7 @@ class StudentService:
         self.student_repository.add(student)
         self.student_repository.commit()
         self.student_repository.refresh(student)
+        self.user_service.notifier.user_registered(student.user)
         return self.to_response(student)
 
     def get_all_students(self) -> List[StudentResponse]:

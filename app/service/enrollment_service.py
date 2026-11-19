@@ -145,6 +145,26 @@ class EnrollmentService:
         self.enrollment_repository.refresh(enrollment)
         return self.to_response(enrollment)
 
+    def reactivate_enrollment(self, enrollment_id: int) -> EnrollmentResponse:
+        """Vuelve a dejar ACTIVA una matrícula cancelada, si el estudiante no tiene otra matrícula vigente."""
+        enrollment = self.find_or_404(enrollment_id)
+        if enrollment.status == EnrollmentStatus.ACTIVE:
+            return self.to_response(enrollment)
+        if enrollment.status != EnrollmentStatus.CANCELLED:
+            raise InvalidStatusTransitionException("Solo se puede reactivar una matrícula cancelada")
+        current = self.enrollment_repository.find_current_by_student(enrollment.student_id)
+        if current is not None:
+            raise DuplicateResourceException(
+                f"El estudiante ya tiene una matrícula vigente en {current.course.name}. Cancélala primero."
+            )
+        course = self.course_repository.find_by_id(enrollment.course_id, include_inactive=True)
+        if course is None or not course.estado:
+            raise InvalidRequestException("No se puede reactivar: el curso está desactivado")
+        enrollment.status = EnrollmentStatus.ACTIVE
+        self.enrollment_repository.commit()
+        self.enrollment_repository.refresh(enrollment)
+        return self.to_response(enrollment)
+
     def update_status(self, enrollment_id: int, request: UpdateEnrollmentStatusRequest) -> EnrollmentResponse:
         enrollment = self.find_or_404(enrollment_id)
         self._change_status(enrollment, request.status)

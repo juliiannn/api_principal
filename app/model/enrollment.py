@@ -17,5 +17,5 @@ class Enrollment(AuditMixin, Base):
     enrollment_date = Column(Date, nullable=False, default=date.today)
     status = Column(SqlEnum(EnrollmentStatus), nullable=False, default=EnrollmentStatus.ACTIVE)
 
-    student = relationship("Student", back_populates="enrollments")
-    course = relationship("Course", back_populates="enrollments")
+    student = relationship("Student", back_populates="enrollments", lazy="selectin")
+    course = relationship("Course", back_populates="enrollments", lazy="selectin")
