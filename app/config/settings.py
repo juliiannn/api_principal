@@ -21,6 +21,16 @@ class Settings:
 
     # ----- Correo. EMAIL_PROVIDER=smtp (Gmail u otro servidor) o brevo (API por HTTPS: sirve en Render gratis,
     #       que bloquea los puertos SMTP). Sin configurar no se envía nada: las notificaciones quedan como OMITIDO. -----
+    # Nota mínima para aprobar (escala de 0 a 10). Ver app/config/grade_scale.py
+    PASSING_GRADE: float = float(os.getenv("PASSING_GRADE", "6.5"))
+
+    # ----- IA en la nube (Groq, API compatible con OpenAI). Sin GROQ_API_KEY el asistente usa la IA local o el modo básico.
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip()
+    GROQ_API_URL: str = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions").strip()
+    AI_TIMEOUT: int = int(os.getenv("AI_TIMEOUT", "60"))
+    AI_MAX_REQUESTS_PER_MINUTE: int = int(os.getenv("AI_MAX_REQUESTS_PER_MINUTE", "6"))
+
     EMAIL_PROVIDER: str = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
     BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "").strip()
     BREVO_API_URL: str = os.getenv("BREVO_API_URL", "https://api.brevo.com/v3/smtp/email").strip()

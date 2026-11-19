@@ -10,13 +10,14 @@ import logging
 from datetime import date
 from typing import Iterable, Optional
 
+from app.config.grade_scale import PASSING_GRADE, fmt
 from app.model import Announcement, NotificationEvent, User
 from app.repository.notification_repository import EmailNotificationRepository
 from app.service.notification_service import NotificationService
 
 log = logging.getLogger("notifications")
 
-LOW_GRADE_LIMIT = 6.0
+LOW_GRADE_LIMIT = PASSING_GRADE   # nota mínima aprobatoria (PASSING_GRADE en el .env)
 
 ROLE_LABELS = {
     "ADMIN": "administrador", "RECTOR": "rector", "COORDINATOR": "coordinador",
@@ -85,8 +86,8 @@ class PlatformNotifier(NotificationService):
         self.notify(
             NotificationEvent.LOW_GRADE, user.email, f"Alerta académica: {subject} — periodo {period}",
             f"Hola {user.full_name}:\n\n"
-            f"Se registró una nota de {float(value):.1f} en {subject} ({course}) para el periodo {period}, "
-            f"por debajo de la nota mínima aprobatoria ({LOW_GRADE_LIMIT:.1f}).\n\n"
+            f"Se registró una nota de {fmt(float(value))} en {subject} ({course}) para el periodo {period}, "
+            f"por debajo de la nota mínima aprobatoria ({fmt(LOW_GRADE_LIMIT)}).\n\n"
             "Te recomendamos hablar con tu docente para acordar un plan de mejoramiento.",
             user.id,
         )

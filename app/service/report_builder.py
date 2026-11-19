@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session
 
+from app.config.grade_scale import PASSING_GRADE, fmt, level_of
 from app.model import (
     Attendance, AttendanceStatus, Course, CourseSubject, Enrollment, EnrollmentStatus, Grade, PermissionScope, Piar,
     Student, Subject, Teacher,
@@ -72,8 +73,6 @@ CATALOG = [
 CATALOG_BY_TYPE = {c[0]: c for c in CATALOG}
 
 
-def level_of(avg: float) -> str:
-    return "Superior" if avg >= 9.5 else "Alto" if avg >= 8 else "Básico" if avg >= 6 else "Bajo"
 
 
 def fmt_date(d) -> str:
@@ -168,10 +167,10 @@ class ReportBuilder:
             tipo="notas", titulo="Notas por estudiante", filtros=self.describe(), truncated=cut, landscape=True,
             columns=[ReportColumn("Curso", 12), ReportColumn("Estudiante", 30), ReportColumn("Documento", 14),
                      ReportColumn("Materia", 18), ReportColumn("Docente", 28), ReportColumn("Periodo", 11),
-                     ReportColumn("Nota", 8, "decimal", alert_below=6), ReportColumn("Desempeño", 11)],
+                     ReportColumn("Nota", 8, "decimal", alert_below=PASSING_GRADE), ReportColumn("Desempeño", 11)],
             rows=rows,
             summary=[("Notas", len(values)), ("Promedio", f"{avg:.1f}" if values else "—"),
-                     ("Notas menores a 6.0", sum(1 for v in values if v < 6)),
+                     (f"Notas menores a {fmt(PASSING_GRADE)} (no aprobadas)", sum(1 for v in values if v < PASSING_GRADE)),
                      ("Estudiantes", len({r[2] for r in rows}))],
         )
 
@@ -218,7 +217,7 @@ class ReportBuilder:
             subjects = by_student.get(e.student_id, {})
             avgs = {name: sum(v) / len(v) for name, v in subjects.items()}
             general = sum(avgs.values()) / len(avgs) if avgs else None
-            low = sorted(f"{n} ({a:.1f})" for n, a in avgs.items() if a < 6)
+            low = sorted(f"{n} ({a:.1f})" for n, a in avgs.items() if a < PASSING_GRADE)
             total, absent = att.get(e.student_id, [0, 0])
             rows.append([e.course.name, e.student.user.full_name, e.student.user.document,
                          round(general, 1) if general is not None else None,
@@ -231,14 +230,14 @@ class ReportBuilder:
         return ReportData(
             tipo="consolidado", titulo="Consolidado académico", filtros=self.describe(), truncated=cut, landscape=True,
             columns=[ReportColumn("Curso", 11), ReportColumn("Estudiante", 28), ReportColumn("Documento", 13),
-                     ReportColumn("Promedio", 9, "decimal", alert_below=6), ReportColumn("Desempeño", 11),
+                     ReportColumn("Promedio", 9, "decimal", alert_below=PASSING_GRADE), ReportColumn("Desempeño", 11),
                      ReportColumn("Materias en bajo", 9, "number"), ReportColumn("Detalle materias en bajo", 34),
                      ReportColumn("Faltas", 7, "number"), ReportColumn("Asistencia", 10, "percent"),
                      ReportColumn("PIAR", 6)],
             rows=rows,
             summary=[("Estudiantes", len(rows)),
                      ("Promedio del grupo", f"{sum(generals) / len(generals):.1f}" if generals else "—"),
-                     ("Estudiantes en riesgo (promedio < 6)", sum(1 for g in generals if g < 6)),
+                     (f"Estudiantes en riesgo (promedio menor a {fmt(PASSING_GRADE)})", sum(1 for g in generals if g < PASSING_GRADE)),
                      ("Estudiantes con PIAR", sum(1 for r in rows if r[9] == "Sí"))],
         )
 

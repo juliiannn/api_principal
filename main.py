@@ -12,6 +12,7 @@ from app.controller import (
     role_controller, role_module_controller, schedule_controller, special_need_controller,
     statistics_controller, student_controller, subject_controller, teacher_controller,
     user_controller, submission_controller, announcement_controller, notification_controller, report_controller, chat_controller,
+    assistant_controller,
 )
 from app.exception.global_exception_handler import register_exception_handlers
 from app.service.notification_service import resume_pending
@@ -40,6 +41,7 @@ for controller in (
     assignment_controller, statistics_controller, report_card_controller, role_controller,
     module_controller, role_module_controller, special_need_controller, piar_controller,
     submission_controller, announcement_controller, notification_controller, report_controller, chat_controller,
+    assistant_controller,
 ):
     app.include_router(controller.router)
 
